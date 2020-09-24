@@ -213,7 +213,15 @@ int getByte(int x, int n) {
  *   Rating: 2
  */
 unsigned floatAbsVal(unsigned uf) {
-  return 2;
+  // result sets the sign bit to 0 through masking
+  unsigned result = uf & 0x7FFFFFFF;
+  // This is the minimum for NaN
+  unsigned minVal = 0x7F800001;
+  if(result < minVal){
+    return result;
+  } else{
+    return uf;
+  }
 }
 /* 
  * allEvenBitsSet - return 1 if all even-numbered bits in word set to 1
@@ -224,7 +232,13 @@ unsigned floatAbsVal(unsigned uf) {
  *   Rating: 2
  */
 int allEvenBitsSet(int x) {
-  return 2;
+  // This gives mask = 0101 0101
+  int mask = 0x55;
+  mask = mask + (mask << 8);
+  // shift over 2 bytes in order to get 32 bits
+  mask = mask + (mask << 16);
+  // x & mask gets the positions where the two match
+  return !(mask ^ (x & mask));
 }
 /* 
  * conditional - same as x ? y : z 
@@ -234,7 +248,10 @@ int allEvenBitsSet(int x) {
  *   Rating: 3
  */
 int conditional(int x, int y, int z) {
-  return 2;
+  // if x is 0 then 0x00000000 otherwise it is 0xffffffff
+  int mask = (!x + ~0);
+  // if x is not 0 then y else z
+  return (~mask & z) | (mask & y);
 }
 /* 
  * addOK - Determine if can compute x+y without overflow
@@ -245,7 +262,13 @@ int conditional(int x, int y, int z) {
  *   Rating: 3
  */
 int addOK(int x, int y) {
-  return 2;
+  // gets the sign bits
+  int signX = x >> 31;
+  int signY = y >> 31;
+  int signTotal = (x + y) >> 31;
+  // Overflow occurs when the sign bit of x and y are the same
+  // and the sign bit of x and the total are different
+  return !((signX ^ signTotal) & ~(signX ^ signY));
 }
 /* 
  * floatIsLess - Compute f < g for floating point arguments f and g.
@@ -259,7 +282,34 @@ int addOK(int x, int y) {
  *   Rating: 3
  */
 int floatIsLess(unsigned uf, unsigned ug) {
-    return 2;
+    int ufSign;
+    int ugSign;
+    int ufExponent;
+    int ugExponent;
+    int ufFraction;
+    int ugFraction;
+    // Beginning check to see if uf or ug is NaN or if both of them are 0
+    if(!((uf | ug) << 1) || (uf & 0x7fffffff) > 0x7f800000 || (ug & 0x7fffffff) > 0x7f800000){
+      return 0;
+    }
+    // Find the appropriate components
+    ufSign = ((uf >> 31) & 0x1);
+    ugSign = ((ug >> 31) & 0x1);
+    ufExponent = ((uf >> 23) & 0xff);
+    ugExponent = ((ug >> 23) & 0xff);
+    ufFraction = (uf & 0x007fffff);
+    ugFraction = (ug & 0x007fffff);
+    if((ufSign) ^ (ugSign)){
+      return (ufSign) > (ugSign);
+    } else if(ufExponent ^ ugExponent){
+      // returns true(1) if the ufExponent is less than ugExponent and uf sign bit is 0
+      return (ufSign) ^ (ufExponent < ugExponent);
+    } else if (ufFraction ^ ugFraction){
+      // returns true(1) if the ufFraction is less tha ugFraction and uf sign bit is 0
+      return (ufSign) ^ (ufFraction < ugFraction);
+    }
+    //equal
+    return 0;
 }
 /*
  * isPower2 - returns 1 if x is a power of 2, and 0 otherwise
@@ -270,7 +320,13 @@ int floatIsLess(unsigned uf, unsigned ug) {
  *   Rating: 4
  */
 int isPower2(int x) {
-  return 2;
+  int mostSig = (~x + 1) & x;
+  // The most sig bit should be equal to x
+  int check = !(x ^ mostSig);
+  // Takes care of negative case
+  int pass = check & !(x >> 31);
+  check = pass;
+  return !(!x | !check);
 }
 /*
  * isPalindrome - Return 1 if bit pattern in x is equal to its mirror image
@@ -280,5 +336,12 @@ int isPower2(int x) {
  *   Rating: 4
  */
 int isPalindrome(int x) {
-    return 2;
+    int mask = (0x55 << 8) | 0x55;
+    int val = x >> 16;
+    // Finding whether mirror image through reversal
+    val = ((val >> 1) & mask) | ((val & mask) << 1);
+    val = ((val >> 2) & ((0x33 << 8) | 0x33)) | ((val & ((0x33 << 8) | 0x33)) << 2);
+    val = ((val >> 4) & ((0x0f << 8) | (0x0f))) | ((val & ((0x0f << 8) | (0x0f))) << 4);
+    val = ((val >> 8) & 0xff) | ((val & 0xff) << 8);
+    return !((~0 + (1 << 16)) & (val ^ x));
 }
